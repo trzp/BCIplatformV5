@@ -47,7 +47,7 @@ def phase_process(phase_list,Q_p2c,Q_c2p,E_g2p):
     #E_g2p: multiprocessing.Event  gui -> phase  user cease signal
 
     PHASES = register_phase(phase_list)
-    time.sleep(5)
+    time.sleep(2)
     current_phase = 'start' #phase必须从start开始
     Q_p2c.put(current_phase)
     _clk = sysclock()
@@ -62,11 +62,16 @@ def phase_process(phase_list,Q_p2c,Q_c2p,E_g2p):
         
         if not Q_c2p.empty():
             typ,p = Q_c2p.get()
-            if typ == 'change' and PHASES.has_key(p):
-                current_phase = p
-                Q_p2c.put(current_phase)
+            if typ == 'change':
+                if PHASES.has_key(p):
+                    current_phase = p
+                    Q_p2c.put(current_phase)
+                else:
+                    write_log(self_name,'[warning] change phase ?? <%s %s>'%(typ,p))
+            elif typ == 'ask_cur_phase'
+                Q_c2p.put(current_phase)
             else:
-                write_log(self_name,'[warning] change phase ?? <%s %s>'%(typ,p))
+                pass
 
         if E_g2p.is_set():
             Q_p2c.put('stop')
@@ -74,3 +79,35 @@ def phase_process(phase_list,Q_p2c,Q_c2p,E_g2p):
 
         if current_phase == 'stop': break
         time.sleep(0.005)
+
+class phaseInterface():
+    def __init__(self,phase = [], Q_p2c = Queue(),Q_c2p = Queue(),E_g2p = Event()):
+        self.phase_list = phase
+        self.Q_p2c = Q_p2c
+        self.Q_c2p = Q_c2p
+        self.E_g2p = E_g2p
+        self.args = (phase,Q_p2c,Q_c2p,E_g2p)
+        
+        self._phases_ = register_phase(phase)
+    
+    def change_phase(self,phase):
+        if self._phases_.has_key(phase):
+            self.Q_c2p.put(['change',phase])
+        else:
+            write_log('phase: %s did not registered'%(phase))
+    
+    def next_phase(self):
+        return self.Q_p2c.get()
+        
+    def get_current_phase(self):
+        self.Q_c2p.put(['ask_cur_phase',''])
+        return self.Q_c2p.get()
+
+    def in_phase(self,phase):
+        if phase == self.get_current_phase():
+            return True
+        else:
+            return False
+
+    def quit(self):
+        self.E_g2p.set()
